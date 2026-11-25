@@ -1,0 +1,1889 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>বিদ্যুৎ হিসাব (Biddyut Hisab)</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Google Fonts: Hind Siliguri -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['"Hind Siliguri"', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        body {
+            font-family: 'Hind Siliguri', sans-serif;
+            background-color: #f8fafc;
+        }
+        /* Custom Scrollable Wheel / Dropdown styling */
+        select.wheel-select {
+            appearance: none;
+            background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%234f46e5' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+            background-repeat: no-repeat;
+            background-position: right 0.65rem center;
+            background-size: 1em;
+            padding-right: 2rem;
+        }
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f5f9;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 9999px;
+        }
+        @media print {
+            .no-print { display: none !important; }
+            body { background-color: white; }
+        }
+    </style>
+</head>
+<body class="text-slate-800 antialiased min-h-screen flex flex-col">
+
+    <!-- Toast Notification Container -->
+    <div id="toast-container" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 max-w-sm w-full px-4 sm:px-0 pointer-events-none"></div>
+
+    <!-- Top Navigation Bar -->
+    <header class="bg-gradient-to-r from-indigo-700 via-indigo-600 to-blue-600 text-white shadow-lg sticky top-0 z-30 no-print">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5 flex flex-wrap items-center justify-between gap-3">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-white/15 backdrop-blur-sm flex items-center justify-center text-amber-300 text-xl shadow-inner">
+                    <i class="fa-solid fa-bolt"></i>
+                </div>
+                <div>
+                    <h1 class="text-lg sm:text-xl font-bold leading-tight tracking-tight">বিদ্যুৎ হিসাব <span class="text-xs sm:text-sm font-medium text-indigo-200">(Biddyut Hisab)</span></h1>
+                    <p class="text-xs text-indigo-100 flex items-center gap-1.5">
+                        <span id="db-status-dot" class="w-2 h-2 rounded-full bg-amber-300 animate-pulse inline-block"></span>
+                        <span id="db-status-text">সংযোগ হচ্ছে...</span>
+                        <span class="hidden sm:inline text-indigo-200/80">• NESCO (LT-A)</span>
+                    </p>
+                </div>
+            </div>
+
+            <div class="flex items-center gap-2 sm:gap-2.5">
+                <!-- Tariff Info Button (Visible to all, editable by Admin) -->
+                <button onclick="openTariffModal()" class="flex items-center gap-1.5 bg-white/15 hover:bg-white/25 text-white px-3 py-2 rounded-xl text-xs sm:text-sm font-medium transition active:scale-95" title="বিদ্যুতের ইউনিট দর দেখুন বা পরিবর্তন করুন">
+                    <i class="fa-solid fa-list-ol text-amber-300"></i>
+                    <span>বিদ্যুতের দর</span>
+                </button>
+
+                <!-- Admin Status Badge -->
+                <div id="admin-badge" class="hidden items-center gap-1.5 bg-emerald-500/25 border border-emerald-300/40 text-emerald-100 px-3 py-1.5 rounded-full text-xs font-semibold">
+                    <i class="fa-solid fa-shield-halved text-emerald-300"></i>
+                    <span class="hidden sm:inline">অ্যাডমিন</span>
+                </div>
+
+                <!-- Admin Settings Button -->
+                <button id="open-settings-btn" onclick="openSettingsModal()" class="hidden p-2.5 rounded-xl bg-white/15 hover:bg-white/25 text-white transition active:scale-95" title="রুমের নাম ও পিন সেটিংস">
+                    <i class="fa-solid fa-gear"></i>
+                </button>
+
+                <!-- Admin Login / Logout Button -->
+                <button id="admin-auth-btn" onclick="handleAdminButtonClick()" class="flex items-center gap-2 bg-white text-indigo-700 hover:bg-indigo-50 font-semibold px-3.5 py-2 rounded-xl text-xs sm:text-sm shadow-sm transition active:scale-95">
+                    <i class="fa-solid fa-lock" id="admin-btn-icon"></i>
+                    <span id="admin-btn-text">অ্যাডমিন লগইন</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content Container -->
+    <main class="flex-grow max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-8">
+
+        <!-- PUBLIC USER SECTION: Sub-meter Reading Submission (Outside Admin Login) -->
+        <section class="bg-white rounded-2xl border-2 border-amber-200/80 shadow-sm overflow-hidden no-print">
+            <div class="bg-gradient-to-r from-amber-50 to-orange-50/70 px-5 py-4 border-b border-amber-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-amber-500 text-white flex items-center justify-center text-lg shadow-sm shrink-0">
+                        <i class="fa-solid fa-gauge-high"></i>
+                    </div>
+                    <div>
+                        <h2 class="text-base sm:text-lg font-bold text-slate-800">সাব-মিটার রিডিং জমা দিন (সবার জন্য উন্মুক্ত)</h2>
+                        <p class="text-xs text-slate-600">স্ক্রল করে তারিখ, মাস ও বছর সিলেক্ট করে রিডিং সেভ করুন। একবার জমা দিলে তা লক হয়ে যাবে।</p>
+                    </div>
+                </div>
+                <span class="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1 rounded-full bg-white text-amber-800 border border-amber-200 self-start sm:self-auto">
+                    <i class="fa-solid fa-lock text-amber-500"></i>
+                    জমা দেওয়ার পর কেবল অ্যাডমিন পরিবর্তন করতে পারবেন
+                </span>
+            </div>
+
+            <form onsubmit="submitPublicSubmeterReading(event)" class="p-5 grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
+                <!-- Scrollable Date Selectors (Day, Month, Year) -->
+                <div class="md:col-span-5 space-y-1.5">
+                    <label class="block text-xs font-bold text-slate-700">রিডিং নেওয়ার তারিখ (স্ক্রল করে সিলেক্ট করুন)</label>
+                    <div class="grid grid-cols-3 gap-2">
+                        <select id="pub-day" class="wheel-select w-full px-3 py-2.5 rounded-xl border border-slate-300 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-amber-500 outline-none text-sm font-semibold text-slate-800 cursor-pointer" title="দিন সিলেক্ট করুন"></select>
+                        <select id="pub-month" class="wheel-select w-full px-3 py-2.5 rounded-xl border border-slate-300 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-amber-500 outline-none text-sm font-semibold text-slate-800 cursor-pointer" title="মাস সিলেক্ট করুন"></select>
+                        <select id="pub-year" class="wheel-select w-full px-3 py-2.5 rounded-xl border border-slate-300 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-amber-500 outline-none text-sm font-semibold text-slate-800 cursor-pointer" title="বছর সিলেক্ট করুন"></select>
+                    </div>
+                </div>
+
+                <!-- Sub-meter Reading Input -->
+                <div class="md:col-span-3 space-y-1.5">
+                    <div class="flex items-center justify-between">
+                        <label class="block text-xs font-bold text-slate-700">বর্তমান সাব-মিটার রিডিং (kWh) *</label>
+                        <span class="text-[11px] font-semibold text-indigo-600" id="pub-last-reading-hint">আগের রিডিং: ০</span>
+                    </div>
+                    <input type="number" step="0.01" id="pub-reading-input" required placeholder="যেমন: 1345.5"
+                        class="w-full px-4 py-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none text-base font-bold text-slate-900">
+                </div>
+
+                <!-- Optional Note Input -->
+                <div class="md:col-span-2 space-y-1.5">
+                    <label class="block text-xs font-bold text-slate-700">নোট (ঐচ্ছিক)</label>
+                    <input type="text" id="pub-note-input" placeholder="যেমন: মাসিক রিডিং"
+                        class="w-full px-3 py-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none text-sm text-slate-800">
+                </div>
+
+                <!-- Submit & Lock Button -->
+                <div class="md:col-span-2">
+                    <button type="submit" class="w-full justify-center flex items-center gap-2 bg-amber-500 hover:bg-amber-600 text-white font-bold px-4 py-2.5 rounded-xl text-sm shadow-sm transition active:scale-95">
+                        <i class="fa-solid fa-lock"></i>
+                        <span>সেভ ও লক</span>
+                    </button>
+                </div>
+            </form>
+        </section>
+
+        <!-- Admin Quick Action Banner (Only visible when logged in as Admin) -->
+        <section id="admin-panel-banner" class="hidden bg-indigo-900 text-white rounded-2xl p-4 sm:p-5 shadow-md flex-col sm:flex-row items-start sm:items-center justify-between gap-4 no-print">
+            <div class="flex items-center gap-3.5">
+                <div class="w-11 h-11 rounded-xl bg-white/15 text-amber-300 flex items-center justify-center text-lg shrink-0">
+                    <i class="fa-solid fa-file-invoice-dollar"></i>
+                </div>
+                <div>
+                    <h2 class="font-bold text-white text-base">অ্যাডমিন কন্ট্রোল প্যানেল</h2>
+                    <p class="text-xs sm:text-sm text-indigo-200">মাসিক মেইন বিল তৈরি করুন, বিদ্যুতের স্ল্যাব দর পরিবর্তন করুন অথবা লক করা রিডিং এডিট করুন।</p>
+                </div>
+            </div>
+            <div class="flex flex-wrap items-center gap-2.5 w-full sm:w-auto">
+                <button onclick="openTariffModal()" class="flex-1 sm:flex-none justify-center flex items-center gap-2 bg-white/15 hover:bg-white/25 text-white font-semibold px-4 py-2.5 rounded-xl text-sm transition active:scale-95">
+                    <i class="fa-solid fa-sliders"></i>
+                    <span>বিদ্যুতের দর সেটিং</span>
+                </button>
+                <button onclick="openBillModal()" class="flex-1 sm:flex-none justify-center flex items-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white font-bold px-4 py-2.5 rounded-xl text-sm shadow-sm transition active:scale-95">
+                    <i class="fa-solid fa-plus"></i>
+                    <span>নতুন মাসিক বিল তৈরি করুন</span>
+                </button>
+            </div>
+        </section>
+
+        <!-- Latest Month Summary Header & Share Controls -->
+        <section class="space-y-4">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                    <div class="flex items-center gap-2">
+                        <span class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-indigo-100 text-indigo-700" id="latest-month-badge">সর্বশেষ হিসাব</span>
+                        <span class="text-xs text-slate-500" id="latest-date-label">--</span>
+                    </div>
+                    <h2 class="text-xl sm:text-2xl font-bold text-slate-800 mt-1" id="dashboard-heading">চলতি মাসের বিদ্যুৎ বিলের বিভাজন</h2>
+                </div>
+
+                <div class="flex items-center gap-2 no-print">
+                    <button onclick="copySummaryToClipboard()" class="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-medium px-3.5 py-2 rounded-xl text-xs sm:text-sm shadow-sm transition active:scale-95">
+                        <i class="fa-regular fa-copy"></i>
+                        <span>হিসাব কপি করুন (মেসেঞ্জার/হোয়াটসঅ্যাপ)</span>
+                    </button>
+                    <button onclick="window.print()" class="p-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-xl text-sm transition" title="প্রিন্ট করুন">
+                        <i class="fa-solid fa-print"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- 4 Main Stat Cards -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
+                <!-- Card 1: Main Meter & Unit Rate -->
+                <div class="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-sm hover:shadow-md transition">
+                    <div class="flex items-center justify-between mb-3">
+                        <span class="text-xs font-semibold uppercase tracking-wider text-slate-500">মেইন মিটার ও গড় দর</span>
+                        <div class="w-9 h-9 rounded-xl bg-slate-100 text-slate-600 flex items-center justify-center">
+                            <i class="fa-solid fa-plug-circle-bolt"></i>
+                        </div>
+                    </div>
+                    <div class="flex items-baseline gap-1.5">
+                        <span class="text-2xl sm:text-3xl font-bold text-slate-900" id="card-main-bill">৳ ০</span>
+                        <span class="text-xs text-slate-500">মোট বিল</span>
+                    </div>
+                    <div class="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
+                        <span class="text-slate-500">মোট ইউনিট: <strong class="text-slate-700" id="card-main-units">০</strong></span>
+                        <span class="px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700 font-semibold">
+                            দর: <span id="card-unit-rate">৳ ০.০০</span>/ইউনিট
+                        </span>
+                    </div>
+                </div>
+
+                <!-- Card 2: Sub-meter Room -->
+                <div class="bg-gradient-to-br from-amber-50 to-orange-50/60 rounded-2xl p-5 border border-amber-200/80 shadow-sm hover:shadow-md transition">
+                    <div class="flex items-center justify-between mb-3">
+                        <div>
+                            <span class="inline-block px-2 py-0.5 rounded text-[11px] font-bold bg-amber-500 text-white mb-0.5">সাব-মিটার রুম</span>
+                            <h3 class="text-sm font-bold text-slate-800" id="display-name-sub">রুম ৩ (সাব-মিটার)</h3>
+                        </div>
+                        <div class="w-9 h-9 rounded-xl bg-amber-500/15 text-amber-600 flex items-center justify-center">
+                            <i class="fa-solid fa-gauge"></i>
+                        </div>
+                    </div>
+                    <div class="flex items-baseline gap-1.5">
+                        <span class="text-2xl sm:text-3xl font-bold text-amber-700" id="card-sub-bill">৳ ০</span>
+                        <span class="text-xs text-amber-700/80">প্রদেয় বিল</span>
+                    </div>
+                    <div class="mt-3 pt-3 border-t border-amber-200/60 flex items-center justify-between text-xs text-amber-900/80">
+                        <span>ব্যবহৃত: <strong id="card-sub-units">০</strong> ইউনিট</span>
+                        <span>রিডিং: <strong id="card-sub-reading">০ → ০</strong></span>
+                    </div>
+                </div>
+
+                <!-- Card 3: Roommate 1 -->
+                <div class="bg-white rounded-2xl p-5 border border-blue-100 shadow-sm hover:shadow-md transition">
+                    <div class="flex items-center justify-between mb-3">
+                        <div>
+                            <span class="inline-block px-2 py-0.5 rounded text-[11px] font-semibold bg-blue-50 text-blue-600 mb-0.5">সমান ভাগ (৫০% বাকি বিল)</span>
+                            <h3 class="text-sm font-bold text-slate-800" id="display-name-r1">রুম ১</h3>
+                        </div>
+                        <div class="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
+                            <i class="fa-solid fa-user"></i>
+                        </div>
+                    </div>
+                    <div class="flex items-baseline gap-1.5">
+                        <span class="text-2xl sm:text-3xl font-bold text-blue-700" id="card-r1-bill">৳ ০</span>
+                        <span class="text-xs text-slate-500">প্রদেয় বিল</span>
+                    </div>
+                    <div class="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+                        <span>বাকি বিলের অর্ধেক</span>
+                        <span class="text-blue-600 font-medium" id="card-r1-units">~ ০ ইউনিট</span>
+                    </div>
+                </div>
+
+                <!-- Card 4: Roommate 2 -->
+                <div class="bg-white rounded-2xl p-5 border border-emerald-100 shadow-sm hover:shadow-md transition">
+                    <div class="flex items-center justify-between mb-3">
+                        <div>
+                            <span class="inline-block px-2 py-0.5 rounded text-[11px] font-semibold bg-emerald-50 text-emerald-600 mb-0.5">সমান ভাগ (৫০% বাকি বিল)</span>
+                            <h3 class="text-sm font-bold text-slate-800" id="display-name-r2">রুম ২</h3>
+                        </div>
+                        <div class="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+                            <i class="fa-solid fa-user"></i>
+                        </div>
+                    </div>
+                    <div class="flex items-baseline gap-1.5">
+                        <span class="text-2xl sm:text-3xl font-bold text-emerald-700" id="card-r2-bill">৳ ০</span>
+                        <span class="text-xs text-slate-500">প্রদেয় বিল</span>
+                    </div>
+                    <div class="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+                        <span>বাকি বিলের অর্ধেক</span>
+                        <span class="text-emerald-600 font-medium" id="card-r2-units">~ ০ ইউনিট</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Visual Chart & Locked Sub-meter Reading Log Grid -->
+        <section class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <!-- Chart Card -->
+            <div class="lg:col-span-2 bg-white rounded-2xl p-5 sm:p-6 border border-slate-200/80 shadow-sm">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
+                    <div>
+                        <h3 class="text-base sm:text-lg font-bold text-slate-800">মাসিক বিলের তুলনামূলক চিত্র</h3>
+                        <p class="text-xs text-slate-500">সাব-মিটার রুম বনাম বাকি দুই রুমের বিলের গ্রাফ</p>
+                    </div>
+                    <span class="text-xs font-medium px-2.5 py-1 rounded-lg bg-slate-100 text-slate-600 self-start sm:self-auto">
+                        সর্বশেষ ৬ মাস
+                    </span>
+                </div>
+                <div class="relative h-64 sm:h-72 w-full">
+                    <canvas id="billChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Locked Sub-meter Reading Log Box -->
+            <div class="bg-white rounded-2xl p-5 sm:p-6 border border-slate-200/80 shadow-sm flex flex-col justify-between">
+                <div>
+                    <div class="flex items-center justify-between mb-3">
+                        <div class="flex items-center gap-2">
+                            <span class="w-8 h-8 rounded-lg bg-amber-100 text-amber-600 flex items-center justify-center text-sm">
+                                <i class="fa-solid fa-tachometer-alt"></i>
+                            </span>
+                            <div>
+                                <h3 class="text-base font-bold text-slate-800">সাব-মিটার রিডিং রেকর্ড</h3>
+                                <p class="text-xs text-slate-500">ব্যবহারকারীর জমা দেওয়া লকড রিডিং</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Latest Sub-meter Digital Display -->
+                    <div class="bg-slate-900 text-white rounded-xl p-4 my-4 shadow-inner border border-slate-700">
+                        <div class="flex items-center justify-between text-xs text-slate-400 mb-1">
+                            <span>সর্বশেষ লকড মিটার রিডিং</span>
+                            <span id="meter-last-date" class="text-amber-400 font-medium">--</span>
+                        </div>
+                        <div class="flex items-baseline justify-between">
+                            <div class="font-mono text-2xl sm:text-3xl font-bold tracking-widest text-emerald-400" id="meter-digital-display">
+                                0000.0
+                            </div>
+                            <span class="text-xs text-slate-400">kWh (ইউনিট)</span>
+                        </div>
+                    </div>
+
+                    <!-- Recent Readings List -->
+                    <div class="space-y-2.5 max-h-48 overflow-y-auto pr-1" id="submeter-logs-list">
+                        <p class="text-xs text-slate-400 text-center py-4">কোনো রিডিং পাওয়া যায়নি</p>
+                    </div>
+                </div>
+
+                <div class="mt-4 pt-3 border-t border-slate-100 text-xs text-slate-500 flex items-center gap-1.5">
+                    <i class="fa-solid fa-shield-halved text-amber-500"></i>
+                    <span>লকড রিডিং কেবল অ্যাডমিন এডিট বা ডিলিট করতে পারবেন।</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- Monthly Billing History Table -->
+        <section class="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
+            <div class="p-5 sm:p-6 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                    <h3 class="text-base sm:text-lg font-bold text-slate-800">বিগত মাসের বিদ্যুৎ বিলের তালিকা</h3>
+                    <p class="text-xs text-slate-500">প্রতি মাসের মেইন মিটার, ইউনিট দর এবং তিন রুমের বিস্তারিত হিসাব</p>
+                </div>
+                <span class="text-xs text-slate-500 bg-slate-100 px-3 py-1.5 rounded-lg font-medium self-start sm:self-auto" id="total-records-count">
+                    মোট রেকর্ড: ০ টি
+                </span>
+            </div>
+
+            <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                        <tr class="bg-slate-50/80 border-b border-slate-200 text-xs font-bold text-slate-600 uppercase">
+                            <th class="py-3.5 px-4">মাস ও তারিখ</th>
+                            <th class="py-3.5 px-4">সাব-মিটার রিডিং</th>
+                            <th class="py-3.5 px-4 text-right">সাব ইউনিট</th>
+                            <th class="py-3.5 px-4 text-right">মেইন ইউনিট ও বিল</th>
+                            <th class="py-3.5 px-4 text-right">কার্যকর দর</th>
+                            <th class="py-3.5 px-4 text-right bg-amber-50/60 text-amber-800" id="th-name-sub">রুম ৩ (সাব)</th>
+                            <th class="py-3.5 px-4 text-right bg-blue-50/50 text-blue-800" id="th-name-r1">রুম ১</th>
+                            <th class="py-3.5 px-4 text-right bg-emerald-50/50 text-emerald-800" id="th-name-r2">রুম ২</th>
+                            <th class="py-3.5 px-4 text-center admin-only hidden no-print">অ্যাকশন</th>
+                        </tr>
+                    </thead>
+                    <tbody id="history-table-body" class="divide-y divide-slate-100 text-sm"></tbody>
+                </table>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-white border-t border-slate-200 py-4 text-center text-xs text-slate-500 no-print">
+        <p>বিদ্যুৎ হিসাব (Biddyut Hisab) • রিয়েল-টাইম ক্লাউড সিঙ্ক ও NESCO আবাসিক (LT-A) হিসাব</p>
+    </footer>
+
+    <!-- ==================== MODALS ==================== -->
+
+    <!-- 1. Admin Login Modal -->
+    <div id="admin-login-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
+        <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-100">
+            <div class="flex items-center justify-between mb-4">
+                <div class="flex items-center gap-2.5">
+                    <div class="w-10 h-10 rounded-xl bg-indigo-100 text-indigo-600 flex items-center justify-center">
+                        <i class="fa-solid fa-user-shield"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-lg font-bold text-slate-800">অ্যাডমিন লগইন</h3>
+                        <p class="text-xs text-slate-500">বিল তৈরি, দর পরিবর্তন বা লকড রিডিং এডিট করতে লগইন করুন</p>
+                    </div>
+                </div>
+                <button onclick="closeModal('admin-login-modal')" class="text-slate-400 hover:text-slate-600 p-1">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+
+            <form onsubmit="submitAdminLogin(event)" class="space-y-4">
+                <div>
+                    <label class="block text-sm font-semibold text-slate-700 mb-1.5">অ্যাডমিন পিন / পাসওয়ার্ড</label>
+                    <input type="password" id="admin-pin-input" required placeholder="পিন লিখুন (ডিফল্ট: 1234)" 
+                        class="w-full px-4 py-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-500 outline-none text-base tracking-widest">
+                    <p class="text-xs text-slate-500 mt-1.5 flex items-center gap-1">
+                        <i class="fa-solid fa-key text-amber-500"></i>
+                        ডিফল্ট পিন: <strong class="text-slate-700">1234</strong>
+                    </p>
+                </div>
+
+                <div class="flex items-center justify-end gap-2.5 pt-2">
+                    <button type="button" onclick="closeModal('admin-login-modal')" class="px-4 py-2.5 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 text-sm font-semibold">
+                        বাতিল
+                    </button>
+                    <button type="submit" class="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold shadow-sm">
+                        লগইন করুন
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 2. NESCO Tariff Slab Modal (Viewable by All, Editable by Admin) -->
+    <div id="tariff-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden items-center justify-center p-4 overflow-y-auto">
+        <div class="bg-white rounded-2xl max-w-2xl w-full p-6 shadow-2xl border border-slate-100 my-8">
+            <div class="flex items-center justify-between mb-4 pb-3 border-b border-slate-100">
+                <div class="flex items-center gap-2.5">
+                    <div class="w-10 h-10 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center">
+                        <i class="fa-solid fa-bolt"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-lg font-bold text-slate-800">NESCO আবাসিক (LT-A) বিদ্যুতের দর</h3>
+                        <p class="text-xs text-slate-500" id="tariff-modal-subtitle">বিদ্যুৎ বিলের স্ল্যাব অনুযায়ী ইউনিটের মূল্যহার</p>
+                    </div>
+                </div>
+                <button onclick="closeModal('tariff-modal')" class="text-slate-400 hover:text-slate-600 p-1">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+
+            <form onsubmit="submitTariffRates(event)" class="space-y-4">
+                <div class="overflow-x-auto border border-slate-200 rounded-xl">
+                    <table class="w-full text-left border-collapse text-sm">
+                        <thead>
+                            <tr class="bg-slate-50 border-b border-slate-200 text-xs font-bold text-slate-600">
+                                <th class="py-2.5 px-3.5">ধাপ (Slab)</th>
+                                <th class="py-2.5 px-3.5">ইউনিট সীমা (kWh)</th>
+                                <th class="py-2.5 px-3.5 text-right">দর (টাকা/ইউনিট)</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tariff-slabs-tbody" class="divide-y divide-slate-100">
+                            <!-- Populated by JS -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">ডিমান্ড চার্জ (টাকা/মাস)</label>
+                        <input type="number" step="0.01" id="tariff-demand-charge" class="tariff-input w-full px-3 py-2 rounded-lg border border-slate-300 bg-white text-sm font-bold">
+                        <span class="text-[11px] text-slate-500">২ কি.ও. লোডের জন্য বিলে ৮৪.০০ টাকা</span>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-700 mb-1">ভ্যাট / VAT (%)</label>
+                        <input type="number" step="0.01" id="tariff-vat-percent" class="tariff-input w-full px-3 py-2 rounded-lg border border-slate-300 bg-white text-sm font-bold">
+                        <span class="text-[11px] text-slate-500">বিদ্যুৎ বিলের ওপর প্রযোজ্য ভ্যাট (৫%)</span>
+                    </div>
+                </div>
+
+                <div class="flex items-center justify-between pt-2">
+                    <button type="button" id="reset-tariff-btn" onclick="resetDefaultTariff()" class="hidden text-xs font-semibold text-rose-600 hover:underline">
+                        ডিফল্ট NESCO দরে ফিরে যান
+                    </button>
+                    <div class="flex items-center gap-2.5 ml-auto">
+                        <button type="button" onclick="closeModal('tariff-modal')" class="px-4 py-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 text-sm font-semibold">
+                            বন্ধ করুন
+                        </button>
+                        <button type="submit" id="save-tariff-btn" class="hidden px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold shadow-sm">
+                            নতুন দর সেভ করুন
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 3. Add Monthly Bill Modal (Admin Only) -->
+    <div id="bill-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden items-center justify-center p-4 overflow-y-auto">
+        <div class="bg-white rounded-2xl max-w-xl w-full p-6 shadow-2xl border border-slate-100 my-8">
+            <div class="flex items-center justify-between mb-4 pb-3 border-b border-slate-100">
+                <div class="flex items-center gap-2.5">
+                    <div class="w-10 h-10 rounded-xl bg-indigo-100 text-indigo-600 flex items-center justify-center">
+                        <i class="fa-solid fa-file-invoice"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-lg font-bold text-slate-800">নতুন মাসের বিদ্যুৎ বিল তৈরি করুন</h3>
+                        <p class="text-xs text-slate-500">NESCO স্ল্যাব রেট অনুযায়ী অটো হিসাব অথবা বিলের মোট টাকা দিন</p>
+                    </div>
+                </div>
+                <button onclick="closeModal('bill-modal')" class="text-slate-400 hover:text-slate-600 p-1">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+
+            <form onsubmit="submitNewBill(event)" class="space-y-4">
+                <!-- Scrollable Date Selectors for Bill -->
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">বিলের তারিখ, মাস ও বছর (স্ক্রল করে সিলেক্ট করুন)</label>
+                    <div class="grid grid-cols-3 gap-2">
+                        <select id="bill-day" class="wheel-select w-full px-3 py-2.5 rounded-xl border border-slate-300 bg-slate-50 text-sm font-semibold"></select>
+                        <select id="bill-month" class="wheel-select w-full px-3 py-2.5 rounded-xl border border-slate-300 bg-slate-50 text-sm font-semibold"></select>
+                        <select id="bill-year" class="wheel-select w-full px-3 py-2.5 rounded-xl border border-slate-300 bg-slate-50 text-sm font-semibold"></select>
+                    </div>
+                </div>
+
+                <!-- Sub-meter Section -->
+                <div class="bg-amber-50/70 border border-amber-200/80 rounded-xl p-4 space-y-3">
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs font-bold text-amber-900 flex items-center gap-1.5">
+                            <i class="fa-solid fa-gauge-high text-amber-600"></i>
+                            সাব-মিটারের রিডিং
+                        </span>
+                        <span class="text-xs font-semibold text-amber-700" id="preview-sub-units">ব্যবহৃত: ০ ইউনিট</span>
+                    </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs font-medium text-slate-600 mb-1">পূর্ববর্তী রিডিং</label>
+                            <input type="number" step="0.01" id="bill-prev-sub" required oninput="calculateLivePreview()"
+                                class="w-full px-3 py-2 rounded-lg border border-amber-300 bg-white focus:ring-2 focus:ring-amber-500 outline-none text-sm font-semibold">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-slate-600 mb-1">বর্তমান রিডিং (সর্বশেষ লকড থেকে নেওয়া)</label>
+                            <input type="number" step="0.01" id="bill-curr-sub" required oninput="calculateLivePreview()"
+                                class="w-full px-3 py-2 rounded-lg border border-amber-300 bg-white focus:ring-2 focus:ring-amber-500 outline-none text-sm font-semibold">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Main Meter Section with Auto-Slab Calculation -->
+                <div class="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                            <i class="fa-solid fa-bolt text-indigo-600"></i>
+                            মেইন মিটারের ইউনিট ও বিল
+                        </span>
+                        <span class="text-xs font-semibold text-indigo-600" id="preview-rate">কার্যকর দর: ৳ ০.০০/ইউনিট</span>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs font-medium text-slate-600 mb-1">মেইন মিটারের মোট ইউনিট *</label>
+                            <input type="number" step="0.01" id="bill-main-units" required oninput="onMainUnitsChange()" placeholder="যেমন: 90"
+                                class="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white focus:ring-2 focus:ring-indigo-500 outline-none text-sm font-semibold">
+                        </div>
+                        <div>
+                            <div class="flex items-center justify-between mb-1">
+                                <label class="block text-xs font-medium text-slate-600">মেইন বিলের মোট টাকা (৳) *</label>
+                                <button type="button" onclick="applyNescoAutoBill()" class="text-[11px] font-bold text-indigo-600 hover:underline">
+                                    স্ল্যাব রেটে বসান
+                                </button>
+                            </div>
+                            <input type="number" step="0.01" id="bill-main-amount" required oninput="calculateLivePreview()" placeholder="যেমন: 637"
+                                class="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white focus:ring-2 focus:ring-indigo-500 outline-none text-sm font-semibold">
+                        </div>
+                    </div>
+
+                    <!-- NESCO Slab Estimate Hint -->
+                    <div id="nesco-slab-breakdown-box" class="hidden text-xs bg-indigo-50/80 text-indigo-900 p-2.5 rounded-lg border border-indigo-100">
+                        <!-- Dynamically filled with slab details -->
+                    </div>
+                </div>
+
+                <!-- Live Calculation Preview Box -->
+                <div class="bg-indigo-600 text-white rounded-xl p-4 shadow-sm">
+                    <p class="text-xs text-indigo-200 mb-2 font-medium">তাৎক্ষণিক বিল বিভাজন প্রিভিউ:</p>
+                    <div class="grid grid-cols-3 gap-2 text-center">
+                        <div class="bg-white/10 rounded-lg p-2">
+                            <span class="block text-[11px] text-amber-200" id="prev-lbl-sub">সাব-মিটার রুম</span>
+                            <strong class="text-base sm:text-lg font-bold" id="prev-val-sub">৳ ০</strong>
+                        </div>
+                        <div class="bg-white/10 rounded-lg p-2">
+                            <span class="block text-[11px] text-blue-200" id="prev-lbl-r1">রুম ১</span>
+                            <strong class="text-base sm:text-lg font-bold" id="prev-val-r1">৳ ০</strong>
+                        </div>
+                        <div class="bg-white/10 rounded-lg p-2">
+                            <span class="block text-[11px] text-emerald-200" id="prev-lbl-r2">রুম ২</span>
+                            <strong class="text-base sm:text-lg font-bold" id="prev-val-r2">৳ ০</strong>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex items-center justify-end gap-2.5 pt-2">
+                    <button type="button" onclick="closeModal('bill-modal')" class="px-4 py-2.5 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 text-sm font-semibold">
+                        বাতিল
+                    </button>
+                    <button type="submit" class="px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold shadow-sm flex items-center gap-2">
+                        <i class="fa-solid fa-check"></i>
+                        <span>হিসাব সেভ করুন</span>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 4. Admin Edit Locked Sub-meter Reading Modal -->
+    <div id="edit-reading-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
+        <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-100">
+            <div class="flex items-center justify-between mb-4">
+                <div class="flex items-center gap-2.5">
+                    <div class="w-10 h-10 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center">
+                        <i class="fa-solid fa-pen-to-square"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-lg font-bold text-slate-800">লকড সাব-মিটার রিডিং পরিবর্তন</h3>
+                        <p class="text-xs text-slate-500">অ্যাডমিন হিসেবে সংরক্ষিত রিডিং সংশোধন করুন</p>
+                    </div>
+                </div>
+                <button onclick="closeModal('edit-reading-modal')" class="text-slate-400 hover:text-slate-600 p-1">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+
+            <form onsubmit="submitEditReading(event)" class="space-y-4">
+                <input type="hidden" id="edit-reading-id">
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">তারিখ (স্ক্রল করে সিলেক্ট করুন)</label>
+                    <div class="grid grid-cols-3 gap-2">
+                        <select id="edit-day" class="wheel-select w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-sm font-semibold"></select>
+                        <select id="edit-month" class="wheel-select w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-sm font-semibold"></select>
+                        <select id="edit-year" class="wheel-select w-full px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-sm font-semibold"></select>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">সাব-মিটার রিডিং (kWh) *</label>
+                    <input type="number" step="0.01" id="edit-reading-val" required
+                        class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-amber-500 outline-none text-base font-bold">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">নোট (ঐচ্ছিক)</label>
+                    <input type="text" id="edit-reading-note" placeholder="মন্তব্য বা নোট"
+                        class="w-full px-3.5 py-2 rounded-xl border border-slate-300 focus:ring-2 focus:ring-amber-500 outline-none text-sm">
+                </div>
+
+                <div class="flex items-center justify-end gap-2.5 pt-2">
+                    <button type="button" onclick="closeModal('edit-reading-modal')" class="px-4 py-2.5 rounded-xl border border-slate-200 text-slate-600 text-sm font-semibold">
+                        বাতিল
+                    </button>
+                    <button type="submit" class="px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-sm font-semibold shadow-sm">
+                        আপডেট করুন
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 5. Admin Room Names & PIN Settings Modal -->
+    <div id="settings-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
+        <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-100">
+            <div class="flex items-center justify-between mb-4">
+                <div class="flex items-center gap-2.5">
+                    <div class="w-10 h-10 rounded-xl bg-indigo-100 text-indigo-600 flex items-center justify-center">
+                        <i class="fa-solid fa-gear"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-lg font-bold text-slate-800">রুমের নাম ও পিন সেটিংস</h3>
+                        <p class="text-xs text-slate-500">তিন রুমের নাম ও অ্যাডমিন পিন পরিবর্তন করুন</p>
+                    </div>
+                </div>
+                <button onclick="closeModal('settings-modal')" class="text-slate-400 hover:text-slate-600 p-1">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+
+            <form onsubmit="submitSettings(event)" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">সাব-মিটার রুমের নাম</label>
+                    <input type="text" id="set-name-sub" required
+                        class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-500 outline-none text-sm font-semibold">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">রুম ১-এর নাম</label>
+                    <input type="text" id="set-name-r1" required
+                        class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-500 outline-none text-sm font-semibold">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">রুম ২-এর নাম</label>
+                    <input type="text" id="set-name-r2" required
+                        class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-500 outline-none text-sm font-semibold">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">অ্যাডমিন লগইন পিন</label>
+                    <input type="text" id="set-admin-pin" required
+                        class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-indigo-500 outline-none text-sm font-bold tracking-widest">
+                </div>
+
+                <div class="flex items-center justify-end gap-2.5 pt-2">
+                    <button type="button" onclick="closeModal('settings-modal')" class="px-4 py-2.5 rounded-xl border border-slate-200 text-slate-600 text-sm font-semibold">
+                        বাতিল
+                    </button>
+                    <button type="submit" class="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold shadow-sm">
+                        সেটিংস সেভ করুন
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 6. Custom Delete Confirmation Modal -->
+    <div id="delete-confirm-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
+        <div class="bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl border border-slate-100 text-center">
+            <div class="w-12 h-12 rounded-full bg-red-100 text-red-600 flex items-center justify-center mx-auto mb-3 text-xl">
+                <i class="fa-solid fa-trash-can"></i>
+            </div>
+            <h3 class="text-lg font-bold text-slate-800 mb-1">আপনি কি নিশ্চিত?</h3>
+            <p class="text-xs sm:text-sm text-slate-500 mb-5">এই রেকর্ডটি স্থায়ীভাবে মুছে ফেলা হবে।</p>
+            <div class="flex items-center justify-center gap-3">
+                <button onclick="closeModal('delete-confirm-modal')" class="flex-1 py-2.5 rounded-xl border border-slate-200 text-slate-600 text-sm font-semibold">
+                    না, থাকুক
+                </button>
+                <button id="confirm-delete-btn" class="flex-1 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-sm font-semibold shadow-sm">
+                    হ্যাঁ, মুছে ফেলুন
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+        import { getDatabase, ref, onValue, set, push, remove } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+
+        // ==================== STATE & STORAGE KEYS ====================
+        const STORAGE_KEYS = {
+            SETTINGS: 'nesco_house_settings_v2',
+            TARIFF: 'nesco_tariff_slabs_v2',
+            BILLS: 'nesco_monthly_bills_v2',
+            READINGS: 'nesco_locked_readings_v2'
+        };
+
+        const DB_PATHS = {
+            SETTINGS: 'biddyutHisab/settings',
+            TARIFF: 'biddyutHisab/tariff',
+            BILLS: 'biddyutHisab/bills',
+            READINGS: 'biddyutHisab/readings'
+        };
+
+        const BN_MONTHS = [
+            'জানুয়ারি', 'ফেব্রুয়ারি', 'মার্চ', 'এপ্রিল', 'মে', 'জুন',
+            'জুলাই', 'আগস্ট', 'সেপ্টেম্বর', 'অক্টোবর', 'নভেম্বর', 'ডিসেম্বর'
+        ];
+
+        const DEFAULT_TARIFF = {
+            slabs: [
+                { id: 'lifeline', name: 'লাইফ লাইন', range: '০ - ৫০ ইউনিট (মোট ≤৫০ হলে)', min: 0, max: 50, rate: 4.63, isLifeline: true },
+                { id: 'step1', name: 'প্রথম ধাপ', range: '০ - ৭৫ ইউনিট', min: 0, max: 75, rate: 5.26 },
+                { id: 'step2', name: 'দ্বিতীয় ধাপ', range: '৭৬ - ২০০ ইউনিট', min: 76, max: 200, rate: 8.50 },
+                { id: 'step3', name: 'তৃতীয় ধাপ', range: '২০১ - ৩০০ ইউনিট', min: 201, max: 300, rate: 9.10 },
+                { id: 'step4', name: 'চতুর্থ ধাপ', range: '৩০১ - ৪০০ ইউনিট', min: 301, max: 400, rate: 9.62 },
+                { id: 'step5', name: 'পঞ্চম ধাপ', range: '৪০১ - ৬০০ ইউনিট', min: 401, max: 600, rate: 15.01 },
+                { id: 'step6', name: 'ষষ্ঠ ধাপ', range: '৬০০ ইউনিটের ঊর্ধ্বে', min: 601, max: Infinity, rate: 17.35 }
+            ],
+            demandCharge: 84.00,
+            vatPercent: 5.0
+        };
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyBxqTdg73R9ErvAYBMSyMAOvRIvJIsvZBE",
+            authDomain: "biddyut-hisab.firebaseapp.com",
+            databaseURL: "https://biddyut-hisab-default-rtdb.asia-southeast1.firebasedatabase.app",
+            projectId: "biddyut-hisab",
+            storageBucket: "biddyut-hisab.firebasestorage.app",
+            messagingSenderId: "722834935648",
+            appId: "1:722834935648:web:f685c6cbf05bf4d70bd805",
+            measurementId: "G-SJ1HB5TEEW"
+        };
+
+        let isAdmin = false;
+        let billChartInstance = null;
+        let pendingDelete = { type: null, id: null };
+        let db = null;
+        let isFirebaseConnected = false;
+
+        // Track IDs explicitly deleted in this session so stale remote snapshots never resurrect them
+        const deletedReadingIds = new Set();
+        const deletedBillIds = new Set();
+
+        let appSettings = loadJson(STORAGE_KEYS.SETTINGS, {
+            nameSub: 'রুম ৩ (সাব-মিটার)',
+            nameR1: 'রুম ১',
+            nameR2: 'রুম ২',
+            adminPin: '1234'
+        });
+
+        let tariffConfig = normalizeTariff(loadJson(STORAGE_KEYS.TARIFF, DEFAULT_TARIFF));
+        let billsList = sortRecords(loadJson(STORAGE_KEYS.BILLS, []));
+        let readingsList = sortRecords(loadJson(STORAGE_KEYS.READINGS, []));
+
+        function loadJson(key, fallback) {
+            try {
+                const raw = localStorage.getItem(key);
+                return raw ? JSON.parse(raw) : structuredClone(fallback);
+            } catch (_) {
+                return structuredClone(fallback);
+            }
+        }
+
+        function normalizeTariff(raw) {
+            const base = structuredClone(DEFAULT_TARIFF);
+            if (!raw || !Array.isArray(raw.slabs)) return base;
+            const mergedSlabs = base.slabs.map((defSlab, idx) => {
+                const found = raw.slabs.find(s => s && s.id === defSlab.id) || raw.slabs[idx];
+                const rateNum = found && found.rate !== undefined && !isNaN(parseFloat(found.rate))
+                    ? parseFloat(found.rate)
+                    : defSlab.rate;
+                return { ...defSlab, rate: rateNum };
+            });
+            return {
+                slabs: mergedSlabs,
+                demandCharge: raw.demandCharge !== undefined && !isNaN(parseFloat(raw.demandCharge)) ? parseFloat(raw.demandCharge) : base.demandCharge,
+                vatPercent: raw.vatPercent !== undefined && !isNaN(parseFloat(raw.vatPercent)) ? parseFloat(raw.vatPercent) : base.vatPercent
+            };
+        }
+
+        function sortRecords(arr) {
+            if (!Array.isArray(arr)) return [];
+            return [...arr].sort((a, b) =>
+                String(b.isoDate || '').localeCompare(String(a.isoDate || '')) ||
+                (Number(b.createdAt) || 0) - (Number(a.createdAt) || 0)
+            );
+        }
+
+        function saveAllToStorage() {
+            try {
+                localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(appSettings));
+                localStorage.setItem(STORAGE_KEYS.TARIFF, JSON.stringify(tariffConfig));
+                localStorage.setItem(STORAGE_KEYS.BILLS, JSON.stringify(billsList));
+                localStorage.setItem(STORAGE_KEYS.READINGS, JSON.stringify(readingsList));
+            } catch (e) {
+                console.warn('localStorage save warning:', e);
+            }
+        }
+
+        // ==================== HELPER FUNCTIONS ====================
+        function toBn(num) {
+            if (num === null || num === undefined || num === '' || isNaN(Number(num))) return '০';
+            const bnDigits = ['০', '১', '২', '৩', '৪', '৫', '৬', '৭', '৮', '৯'];
+            return String(num).replace(/\d/g, d => bnDigits[d]);
+        }
+
+        function formatTaka(amount) {
+            const val = Number(amount || 0).toFixed(2);
+            const cleanVal = val.endsWith('.00') ? val.slice(0, -3) : val;
+            return '৳ ' + toBn(cleanVal);
+        }
+
+        function showToast(message, type = 'success') {
+            const container = document.getElementById('toast-container');
+            if (!container) return;
+            const toast = document.createElement('div');
+            const colors = {
+                success: 'bg-emerald-600 text-white',
+                error: 'bg-red-600 text-white',
+                info: 'bg-slate-800 text-white'
+            };
+            const icons = {
+                success: 'fa-circle-check',
+                error: 'fa-circle-exclamation',
+                info: 'fa-circle-info'
+            };
+            toast.className = `${colors[type] || colors.info} px-4 py-3 rounded-xl shadow-lg flex items-center gap-2.5 text-sm font-medium pointer-events-auto transition-all duration-300`;
+            toast.innerHTML = `<i class="fa-solid ${icons[type] || icons.info}"></i><span>${message}</span>`;
+            container.appendChild(toast);
+            setTimeout(() => {
+                toast.classList.add('opacity-0');
+                setTimeout(() => toast.remove(), 300);
+            }, 3500);
+        }
+
+        function setDbStatus(state, label) {
+            const dot = document.getElementById('db-status-dot');
+            const text = document.getElementById('db-status-text');
+            if (!dot || !text) return;
+            text.textContent = label;
+            dot.classList.remove('bg-emerald-400', 'bg-amber-300', 'bg-rose-400', 'animate-pulse');
+            if (state === 'live') {
+                dot.classList.add('bg-emerald-400');
+            } else if (state === 'connecting') {
+                dot.classList.add('bg-amber-300', 'animate-pulse');
+            } else {
+                dot.classList.add('bg-rose-400');
+            }
+        }
+
+        async function writeNode(path, data) {
+            if (!db) return;
+            await set(ref(db, path), data);
+        }
+
+        async function pushNode(path, data) {
+            if (!db) {
+                return 'local-' + Date.now();
+            }
+            const newRef = push(ref(db, path));
+            const key = newRef.key;
+            await set(newRef, { ...data, id: key });
+            return key;
+        }
+
+        async function deleteNode(path, id) {
+            if (!id) return;
+            if (db) {
+                // Explicitly remove / nullify in Firebase Realtime Database
+                await remove(ref(db, `${path}/${id}`));
+                await set(ref(db, `${path}/${id}`), null);
+            }
+        }
+
+        // ==================== SCROLLABLE DATE WHEEL POPULATOR ====================
+        function populateDateWheels(dayId, monthId, yearId, defaultDateObj = new Date()) {
+            const daySel = document.getElementById(dayId);
+            const monthSel = document.getElementById(monthId);
+            const yearSel = document.getElementById(yearId);
+            if (!daySel || !monthSel || !yearSel) return;
+
+            daySel.innerHTML = '';
+            for (let d = 1; d <= 31; d++) {
+                const opt = document.createElement('option');
+                opt.value = d;
+                opt.textContent = `${toBn(d)} তারিখ`;
+                daySel.appendChild(opt);
+            }
+
+            monthSel.innerHTML = '';
+            BN_MONTHS.forEach((m, idx) => {
+                const opt = document.createElement('option');
+                opt.value = idx;
+                opt.textContent = m;
+                monthSel.appendChild(opt);
+            });
+
+            yearSel.innerHTML = '';
+            for (let y = 2024; y <= 2030; y++) {
+                const opt = document.createElement('option');
+                opt.value = y;
+                opt.textContent = toBn(y);
+                yearSel.appendChild(opt);
+            }
+
+            const validDate = defaultDateObj instanceof Date && !isNaN(defaultDateObj) ? defaultDateObj : new Date();
+            daySel.value = String(validDate.getDate());
+            monthSel.value = String(validDate.getMonth());
+            yearSel.value = String(validDate.getFullYear());
+        }
+
+        function getFormattedWheelDate(dayId, monthId, yearId) {
+            const d = parseInt(document.getElementById(dayId).value, 10) || 1;
+            const m = parseInt(document.getElementById(monthId).value, 10) || 0;
+            const y = parseInt(document.getElementById(yearId).value, 10) || new Date().getFullYear();
+            const iso = `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+            const label = `${toBn(d)} ${BN_MONTHS[m]}, ${toBn(y)}`;
+            const monthYear = `${BN_MONTHS[m]} ${toBn(y)}`;
+            return { d, m, y, iso, label, monthYear };
+        }
+
+        // ==================== NESCO TARIFF & SPLIT CALCULATION ENGINE ====================
+        function calculateNescoBillFromUnits(totalUnits) {
+            const units = Math.max(0, Number(totalUnits) || 0);
+            const slabs = tariffConfig.slabs;
+            const lifeline = slabs.find(s => s.isLifeline);
+            let energyCharge = 0;
+
+            if (units > 0 && units <= 50 && lifeline) {
+                energyCharge = units * lifeline.rate;
+            } else if (units > 0) {
+                const step1 = slabs.find(s => s.id === 'step1')?.rate ?? 5.26;
+                const step2 = slabs.find(s => s.id === 'step2')?.rate ?? 8.50;
+                const step3 = slabs.find(s => s.id === 'step3')?.rate ?? 9.10;
+                const step4 = slabs.find(s => s.id === 'step4')?.rate ?? 9.62;
+                const step5 = slabs.find(s => s.id === 'step5')?.rate ?? 15.01;
+                const step6 = slabs.find(s => s.id === 'step6')?.rate ?? 17.35;
+
+                let rem = units;
+                const u1 = Math.min(rem, 75);
+                energyCharge += u1 * step1;
+                rem -= u1;
+
+                if (rem > 0) {
+                    const u2 = Math.min(rem, 125);
+                    energyCharge += u2 * step2;
+                    rem -= u2;
+                }
+                if (rem > 0) {
+                    const u3 = Math.min(rem, 100);
+                    energyCharge += u3 * step3;
+                    rem -= u3;
+                }
+                if (rem > 0) {
+                    const u4 = Math.min(rem, 100);
+                    energyCharge += u4 * step4;
+                    rem -= u4;
+                }
+                if (rem > 0) {
+                    const u5 = Math.min(rem, 200);
+                    energyCharge += u5 * step5;
+                    rem -= u5;
+                }
+                if (rem > 0) {
+                    energyCharge += rem * step6;
+                }
+            }
+
+            const demand = units > 0 ? Number(tariffConfig.demandCharge || 0) : 0;
+            const principal = energyCharge + demand;
+            const vat = Math.round(principal * (Number(tariffConfig.vatPercent || 0) / 100));
+            const totalBill = Math.round(principal + vat);
+
+            return {
+                energyCharge: Number(energyCharge.toFixed(2)),
+                demandCharge: demand,
+                vat: vat,
+                totalBill: totalBill
+            };
+        }
+
+        function computeBillSplit(prevSub, currSub, mainUnits, mainBill) {
+            const pSub = Math.max(0, Number(prevSub) || 0);
+            const cSub = Math.max(0, Number(currSub) || 0);
+            const mUnits = Math.max(0, Number(mainUnits) || 0);
+            const mBill = Math.max(0, Number(mainBill) || 0);
+
+            const subUnits = Number(Math.max(0, cSub - pSub).toFixed(2));
+            const unitRate = mUnits > 0 ? Number((mBill / mUnits).toFixed(4)) : 0;
+            const subBill = Number(Math.min(mBill, subUnits * unitRate).toFixed(2));
+            const remaining = Math.max(0, mBill - subBill);
+            const r1Bill = Number((remaining / 2).toFixed(2));
+            const r2Bill = Number((remaining / 2).toFixed(2));
+
+            return {
+                prevSub: pSub,
+                currSub: cSub,
+                subUnits,
+                mainUnits: mUnits,
+                mainBill: mBill,
+                unitRate,
+                subBill,
+                r1Bill,
+                r2Bill
+            };
+        }
+
+        // Recalculate existing bills immediately when tariff slab rates change (if auto-tariff mode or rate display needed)
+        function refreshAllViews() {
+            applySettingsToUI();
+            renderSubmeterLogs();
+            renderDashboard();
+        }
+
+        // ==================== PUBLIC SUB-METER SUBMISSION & LOCKING ====================
+        window.submitPublicSubmeterReading = async function(e) {
+            e.preventDefault();
+            const dateInfo = getFormattedWheelDate('pub-day', 'pub-month', 'pub-year');
+            const readingInput = document.getElementById('pub-reading-input');
+            const noteInput = document.getElementById('pub-note-input');
+            const readingVal = parseFloat(readingInput.value);
+            const noteVal = (noteInput?.value || '').trim();
+
+            if (isNaN(readingVal) || readingVal < 0) {
+                showToast('সঠিক মিটার রিডিং সংখ্যা লিখুন!', 'error');
+                return;
+            }
+
+            const prevVal = readingsList.length > 0
+                ? Number(readingsList[0].reading)
+                : (billsList.length > 0 ? Number(billsList[0].currSub) : 0);
+
+            if (readingVal < prevVal && !isAdmin) {
+                showToast(`নতুন রিডিং (${toBn(readingVal)}) আগের রিডিং (${toBn(prevVal)})-এর চেয়ে কম হতে পারে না!`, 'error');
+                return;
+            }
+
+            const alreadyExists = readingsList.some(r => r.monthYear === dateInfo.monthYear && r.locked);
+            if (alreadyExists && !isAdmin) {
+                showToast(`${dateInfo.monthYear} মাসের রিডিং ইতিমধ্যে জমা ও লক করা হয়েছে! পরিবর্তনের জন্য অ্যাডমিনের সাথে যোগাযোগ করুন।`, 'error');
+                return;
+            }
+
+            const newEntry = {
+                day: dateInfo.d,
+                monthIdx: dateInfo.m,
+                year: dateInfo.y,
+                isoDate: dateInfo.iso,
+                dateLabel: dateInfo.label,
+                monthYear: dateInfo.monthYear,
+                reading: readingVal,
+                note: noteVal,
+                locked: true,
+                createdAt: Date.now()
+            };
+
+            try {
+                const key = await pushNode(DB_PATHS.READINGS, newEntry);
+                const record = { id: key, ...newEntry };
+                readingsList = sortRecords([record, ...readingsList.filter(r => r.id !== key)]);
+                saveAllToStorage();
+                renderSubmeterLogs();
+                readingInput.value = '';
+                if (noteInput) noteInput.value = '';
+                const usedUnits = Math.max(0, Number((readingVal - prevVal).toFixed(2)));
+                showToast(`${dateInfo.label}-এর রিডিং (${toBn(readingVal)} kWh, ব্যবহৃত ${toBn(usedUnits)} ইউনিট) সেভ ও লক করা হয়েছে!`, 'success');
+            } catch (err) {
+                console.error('Submit reading error:', err);
+                showToast('রিডিং সেভ করতে সমস্যা হয়েছে!', 'error');
+            }
+        };
+
+        // ==================== RENDERING UI ====================
+        function applySettingsToUI() {
+            document.getElementById('display-name-sub').textContent = appSettings.nameSub;
+            document.getElementById('display-name-r1').textContent = appSettings.nameR1;
+            document.getElementById('display-name-r2').textContent = appSettings.nameR2;
+
+            document.getElementById('th-name-sub').textContent = appSettings.nameSub;
+            document.getElementById('th-name-r1').textContent = appSettings.nameR1;
+            document.getElementById('th-name-r2').textContent = appSettings.nameR2;
+
+            document.getElementById('prev-lbl-sub').textContent = appSettings.nameSub;
+            document.getElementById('prev-lbl-r1').textContent = appSettings.nameR1;
+            document.getElementById('prev-lbl-r2').textContent = appSettings.nameR2;
+
+            if (billChartInstance) renderChart();
+        }
+
+        function renderSubmeterLogs() {
+            const container = document.getElementById('submeter-logs-list');
+            const digitalDisplay = document.getElementById('meter-digital-display');
+            const lastDateEl = document.getElementById('meter-last-date');
+            const hintEl = document.getElementById('pub-last-reading-hint');
+
+            let latestReadingVal = 0;
+            let latestReadingDate = '';
+
+            if (readingsList.length > 0) {
+                latestReadingVal = readingsList[0].reading;
+                latestReadingDate = readingsList[0].dateLabel;
+            } else if (billsList.length > 0) {
+                latestReadingVal = billsList[0].currSub;
+                latestReadingDate = billsList[0].dateLabel;
+            }
+
+            digitalDisplay.textContent = Number(latestReadingVal).toFixed(1).padStart(6, '0');
+            lastDateEl.textContent = latestReadingDate || 'নতুন মিটার';
+            hintEl.textContent = `আগের রিডিং: ${toBn(latestReadingVal)}`;
+
+            if (readingsList.length === 0) {
+                container.innerHTML = `<p class="text-xs text-slate-400 text-center py-6">এখনো কোনো সাব-মিটার রিডিং জমা দেওয়া হয়নি</p>`;
+                return;
+            }
+
+            container.innerHTML = readingsList.map(item => `
+                <div class="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-slate-50 border border-slate-200/70 text-xs">
+                    <div class="min-w-0">
+                        <div class="flex items-center gap-1.5 flex-wrap">
+                            <span class="font-bold text-slate-800">${item.dateLabel}</span>
+                            <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 text-[10px] font-bold">
+                                <i class="fa-solid fa-lock text-[9px]"></i> লকড
+                            </span>
+                        </div>
+                        <span class="text-slate-400 text-[11px] block truncate">${item.monthYear}${item.note ? ' • ' + item.note : ''}</span>
+                    </div>
+                    <div class="flex items-center gap-1.5 shrink-0">
+                        <span class="font-mono font-bold text-slate-800 bg-white border border-slate-200 px-2.5 py-1 rounded-lg">
+                            ${toBn(item.reading)} kWh
+                        </span>
+                        ${isAdmin ? `
+                            <button type="button" onclick="openEditReadingModal('${item.id}')" class="text-indigo-600 hover:bg-indigo-100 p-1.5 rounded-lg transition" title="কাস্টমাইজ / এডিট">
+                                <i class="fa-solid fa-pen"></i>
+                            </button>
+                            <button type="button" onclick="promptDelete('reading', '${item.id}')" class="text-red-500 hover:bg-red-100 p-1.5 rounded-lg transition" title="মুছুন">
+                                <i class="fa-solid fa-trash"></i>
+                            </button>
+                        ` : ''}
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function renderDashboard() {
+            document.getElementById('total-records-count').textContent = `মোট রেকর্ড: ${toBn(billsList.length)} টি`;
+
+            if (billsList.length > 0) {
+                const latest = billsList[0];
+                document.getElementById('latest-month-badge').textContent = latest.monthYear;
+                document.getElementById('latest-date-label').textContent = `তারিখ: ${latest.dateLabel}`;
+                document.getElementById('dashboard-heading').textContent = `${latest.monthYear} মাসের বিদ্যুৎ বিলের হিসাব`;
+
+                document.getElementById('card-main-bill').textContent = formatTaka(latest.mainBill);
+                document.getElementById('card-main-units').textContent = toBn(latest.mainUnits);
+                document.getElementById('card-unit-rate').textContent = `৳ ${toBn(Number(latest.unitRate).toFixed(2))}`;
+
+                document.getElementById('card-sub-bill').textContent = formatTaka(latest.subBill);
+                document.getElementById('card-sub-units').textContent = toBn(latest.subUnits);
+                document.getElementById('card-sub-reading').textContent = `${toBn(latest.prevSub)} → ${toBn(latest.currSub)}`;
+
+                const remUnits = Math.max(0, (Number(latest.mainUnits) - Number(latest.subUnits)) / 2).toFixed(1);
+                document.getElementById('card-r1-bill').textContent = formatTaka(latest.r1Bill);
+                document.getElementById('card-r1-units').textContent = `~ ${toBn(remUnits)} ইউনিট`;
+
+                document.getElementById('card-r2-bill').textContent = formatTaka(latest.r2Bill);
+                document.getElementById('card-r2-units').textContent = `~ ${toBn(remUnits)} ইউনিট`;
+            } else {
+                document.getElementById('latest-month-badge').textContent = 'কোনো বিল নেই';
+                document.getElementById('latest-date-label').textContent = 'অ্যাডমিন লগইন করে নতুন মাসিক বিল যোগ করুন';
+                document.getElementById('dashboard-heading').textContent = 'চলতি মাসের বিদ্যুৎ বিলের বিভাজন';
+                document.getElementById('card-main-bill').textContent = '৳ ০';
+                document.getElementById('card-main-units').textContent = '০';
+                document.getElementById('card-unit-rate').textContent = '৳ ০.০০';
+                document.getElementById('card-sub-bill').textContent = '৳ ০';
+                document.getElementById('card-sub-units').textContent = '০';
+                document.getElementById('card-sub-reading').textContent = '০ → ০';
+                document.getElementById('card-r1-bill').textContent = '৳ ০';
+                document.getElementById('card-r1-units').textContent = '~ ০ ইউনিট';
+                document.getElementById('card-r2-bill').textContent = '৳ ০';
+                document.getElementById('card-r2-units').textContent = '~ ০ ইউনিট';
+            }
+
+            renderHistoryTable();
+            renderChart();
+        }
+
+        function renderHistoryTable() {
+            const tbody = document.getElementById('history-table-body');
+            if (billsList.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="9" class="py-10 text-center text-slate-400">
+                            এখনো কোনো মাসের বিল সংরক্ষণ করা হয়নি।
+                        </td>
+                    </tr>`;
+                return;
+            }
+
+            tbody.innerHTML = billsList.map(bill => `
+                <tr class="hover:bg-slate-50/80 transition">
+                    <td class="py-3.5 px-4">
+                        <div class="font-bold text-slate-800">${bill.monthYear}</div>
+                        <div class="text-xs text-slate-400">${bill.dateLabel}</div>
+                    </td>
+                    <td class="py-3.5 px-4 text-xs font-medium text-slate-600">
+                        <span class="bg-slate-100 px-2 py-1 rounded-md">${toBn(bill.prevSub)} → ${toBn(bill.currSub)}</span>
+                    </td>
+                    <td class="py-3.5 px-4 text-right font-semibold text-amber-700">
+                        ${toBn(bill.subUnits)} ইউনিট
+                    </td>
+                    <td class="py-3.5 px-4 text-right">
+                        <div class="font-bold text-slate-800">${formatTaka(bill.mainBill)}</div>
+                        <div class="text-xs text-slate-400">${toBn(bill.mainUnits)} ইউনিট</div>
+                    </td>
+                    <td class="py-3.5 px-4 text-right text-xs font-semibold text-indigo-600">
+                        ৳ ${toBn(Number(bill.unitRate).toFixed(2))}
+                    </td>
+                    <td class="py-3.5 px-4 text-right font-bold text-amber-700 bg-amber-50/40">
+                        ${formatTaka(bill.subBill)}
+                    </td>
+                    <td class="py-3.5 px-4 text-right font-bold text-blue-700 bg-blue-50/30">
+                        ${formatTaka(bill.r1Bill)}
+                    </td>
+                    <td class="py-3.5 px-4 text-right font-bold text-emerald-700 bg-emerald-50/30">
+                        ${formatTaka(bill.r2Bill)}
+                    </td>
+                    <td class="py-3.5 px-4 text-center admin-only ${isAdmin ? '' : 'hidden'} no-print">
+                        <button type="button" onclick="promptDelete('bill', '${bill.id}')" class="text-red-500 hover:bg-red-50 p-2 rounded-lg transition" title="মুছে ফেলুন">
+                            <i class="fa-solid fa-trash-can"></i>
+                        </button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function renderChart() {
+            const canvas = document.getElementById('billChart');
+            if (!canvas) return;
+            const ctx = canvas.getContext('2d');
+            const recentBills = [...billsList].slice(0, 6).reverse();
+
+            const labels = recentBills.length ? recentBills.map(b => b.monthYear) : ['নমুনা মাস'];
+            const subData = recentBills.length ? recentBills.map(b => b.subBill) : [0];
+            const r1Data = recentBills.length ? recentBills.map(b => b.r1Bill) : [0];
+            const r2Data = recentBills.length ? recentBills.map(b => b.r2Bill) : [0];
+
+            const existingChart = Chart.getChart(canvas);
+            if (existingChart) existingChart.destroy();
+            if (billChartInstance) {
+                billChartInstance.destroy();
+                billChartInstance = null;
+            }
+
+            billChartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels,
+                    datasets: [
+                        { label: appSettings.nameSub, data: subData, backgroundColor: '#f59e0b', borderRadius: 6 },
+                        { label: appSettings.nameR1, data: r1Data, backgroundColor: '#3b82f6', borderRadius: 6 },
+                        { label: appSettings.nameR2, data: r2Data, backgroundColor: '#10b981', borderRadius: 6 }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: { font: { family: "'Hind Siliguri', sans-serif", size: 12 }, usePointStyle: true }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: { callback: v => '৳' + v }
+                        }
+                    }
+                }
+            });
+        }
+
+        // ==================== ADMIN AUTH & MODALS ====================
+        window.handleAdminButtonClick = function() {
+            if (isAdmin) {
+                isAdmin = false;
+                updateAdminUI();
+                showToast('অ্যাডমিন মোড থেকে লগআউট করা হয়েছে', 'info');
+            } else {
+                document.getElementById('admin-pin-input').value = '';
+                openModal('admin-login-modal');
+                setTimeout(() => document.getElementById('admin-pin-input')?.focus(), 100);
+            }
+        };
+
+        window.submitAdminLogin = function(e) {
+            e.preventDefault();
+            const pin = document.getElementById('admin-pin-input').value.trim();
+            if (pin === String(appSettings.adminPin)) {
+                isAdmin = true;
+                closeModal('admin-login-modal');
+                updateAdminUI();
+                showToast('অ্যাডমিন লগইন সফল হয়েছে!', 'success');
+            } else {
+                showToast('ভুল পিন দিয়েছেন! আবার চেষ্টা করুন।', 'error');
+            }
+        };
+
+        function updateAdminUI() {
+            const badge = document.getElementById('admin-badge');
+            const banner = document.getElementById('admin-panel-banner');
+            const settingsBtn = document.getElementById('open-settings-btn');
+            const authBtnText = document.getElementById('admin-btn-text');
+            const authBtnIcon = document.getElementById('admin-btn-icon');
+            const authBtn = document.getElementById('admin-auth-btn');
+
+            if (isAdmin) {
+                badge.classList.remove('hidden'); badge.classList.add('flex');
+                banner.classList.remove('hidden'); banner.classList.add('flex');
+                settingsBtn.classList.remove('hidden');
+                authBtnText.textContent = 'লগআউট';
+                authBtnIcon.className = 'fa-solid fa-right-from-bracket';
+                authBtn.className = 'flex items-center gap-2 bg-rose-500 hover:bg-rose-600 text-white font-semibold px-3.5 py-2 rounded-xl text-xs sm:text-sm shadow-sm transition';
+            } else {
+                badge.classList.add('hidden'); badge.classList.remove('flex');
+                banner.classList.add('hidden'); banner.classList.remove('flex');
+                settingsBtn.classList.add('hidden');
+                authBtnText.textContent = 'অ্যাডমিন লগইন';
+                authBtnIcon.className = 'fa-solid fa-lock';
+                authBtn.className = 'flex items-center gap-2 bg-white text-indigo-700 hover:bg-indigo-50 font-semibold px-3.5 py-2 rounded-xl text-xs sm:text-sm shadow-sm transition';
+            }
+
+            document.querySelectorAll('.admin-only').forEach(el => {
+                el.classList.toggle('hidden', !isAdmin);
+            });
+
+            renderSubmeterLogs();
+        }
+
+        window.openModal = function(id) {
+            const m = document.getElementById(id);
+            if (!m) return;
+            m.classList.remove('hidden');
+            m.classList.add('flex');
+        };
+
+        window.closeModal = function(id) {
+            const m = document.getElementById(id);
+            if (!m) return;
+            m.classList.add('hidden');
+            m.classList.remove('flex');
+        };
+
+        // ==================== TARIFF MODAL & INSTANT CUSTOMIZE ====================
+        window.openTariffModal = function() {
+            const tbody = document.getElementById('tariff-slabs-tbody');
+            tbody.innerHTML = tariffConfig.slabs.map((slab, index) => `
+                <tr>
+                    <td class="py-2.5 px-3.5 font-bold text-slate-800">${slab.name}</td>
+                    <td class="py-2.5 px-3.5 text-xs text-slate-600">${slab.range}</td>
+                    <td class="py-2.5 px-3.5 text-right">
+                        <input type="number" step="0.01" data-slab-idx="${index}" value="${slab.rate}"
+                            ${isAdmin ? '' : 'disabled'}
+                            class="slab-rate-input w-24 text-right px-2.5 py-1.5 rounded-lg border ${isAdmin ? 'border-indigo-300 bg-white font-bold text-indigo-700' : 'border-transparent bg-slate-100 font-semibold text-slate-700'}">
+                    </td>
+                </tr>
+            `).join('');
+
+            const demandInput = document.getElementById('tariff-demand-charge');
+            const vatInput = document.getElementById('tariff-vat-percent');
+            demandInput.value = tariffConfig.demandCharge;
+            vatInput.value = tariffConfig.vatPercent;
+            demandInput.disabled = !isAdmin;
+            vatInput.disabled = !isAdmin;
+
+            document.getElementById('tariff-modal-subtitle').textContent = isAdmin
+                ? 'অ্যাডমিন মোড: যেকোনো স্ল্যাবের দর পরিবর্তন করে সেভ করুন'
+                : 'বর্তমান কার্যকরী NESCO ট্যারিফ হার (পরিবর্তন করতে অ্যাডমিন লগইন করুন)';
+
+            document.getElementById('save-tariff-btn').classList.toggle('hidden', !isAdmin);
+            document.getElementById('reset-tariff-btn').classList.toggle('hidden', !isAdmin);
+
+            openModal('tariff-modal');
+        };
+
+        window.submitTariffRates = async function(e) {
+            e.preventDefault();
+            if (!isAdmin) return;
+
+            const updatedSlabs = tariffConfig.slabs.map((s, idx) => {
+                const input = document.querySelector(`.slab-rate-input[data-slab-idx="${idx}"]`);
+                const val = input ? parseFloat(input.value) : NaN;
+                return { ...s, rate: !isNaN(val) && val >= 0 ? val : s.rate };
+            });
+
+            const nextDemand = parseFloat(document.getElementById('tariff-demand-charge').value);
+            const nextVat = parseFloat(document.getElementById('tariff-vat-percent').value);
+
+            tariffConfig = normalizeTariff({
+                slabs: updatedSlabs,
+                demandCharge: !isNaN(nextDemand) && nextDemand >= 0 ? nextDemand : tariffConfig.demandCharge,
+                vatPercent: !isNaN(nextVat) && nextVat >= 0 ? nextVat : tariffConfig.vatPercent
+            });
+
+            // Immediately recalculate bills that were generated using slab tariff if applicable
+            if (billsList.length > 0) {
+                billsList = billsList.map(b => {
+                    if (b.autoSlabCalculated) {
+                        const calc = calculateNescoBillFromUnits(b.mainUnits);
+                        const split = computeBillSplit(b.prevSub, b.currSub, b.mainUnits, calc.totalBill);
+                        return { ...b, ...split };
+                    }
+                    return b;
+                });
+            }
+
+            saveAllToStorage();
+            refreshAllViews();
+            closeModal('tariff-modal');
+            showToast('বিদ্যুতের নতুন দর সফলভাবে আপডেট করা হয়েছে!', 'success');
+
+            try {
+                await writeNode(DB_PATHS.TARIFF, {
+                    ...tariffConfig,
+                    slabs: tariffConfig.slabs.map(s => ({ ...s, max: s.max === Infinity ? null : s.max }))
+                });
+                for (const b of billsList) {
+                    if (b.autoSlabCalculated && b.id) {
+                        await writeNode(`${DB_PATHS.BILLS}/${b.id}`, b);
+                    }
+                }
+            } catch (err) {
+                console.error('Tariff sync error:', err);
+            }
+        };
+
+        window.resetDefaultTariff = async function() {
+            if (!isAdmin) return;
+            tariffConfig = structuredClone(DEFAULT_TARIFF);
+            saveAllToStorage();
+            refreshAllViews();
+            openTariffModal();
+            showToast('NESCO বিলের ডিফল্ট দর পুনরায় সেট করা হয়েছে', 'info');
+            try {
+                await writeNode(DB_PATHS.TARIFF, {
+                    ...tariffConfig,
+                    slabs: tariffConfig.slabs.map(s => ({ ...s, max: s.max === Infinity ? null : s.max }))
+                });
+            } catch (err) {
+                console.error('Reset tariff sync error:', err);
+            }
+        };
+
+        // ==================== ADMIN EDIT LOCKED READING ====================
+        window.openEditReadingModal = function(id) {
+            if (!isAdmin) return;
+            const item = readingsList.find(r => r.id === id);
+            if (!item) return;
+
+            document.getElementById('edit-reading-id').value = item.id;
+            const dateObj = item.isoDate ? new Date(item.isoDate + 'T12:00:00') : new Date(item.createdAt || Date.now());
+            populateDateWheels('edit-day', 'edit-month', 'edit-year', dateObj);
+            document.getElementById('edit-reading-val').value = item.reading;
+            const noteEl = document.getElementById('edit-reading-note');
+            if (noteEl) noteEl.value = item.note || '';
+            openModal('edit-reading-modal');
+        };
+
+        window.submitEditReading = async function(e) {
+            e.preventDefault();
+            if (!isAdmin) return;
+
+            const id = document.getElementById('edit-reading-id').value;
+            const dateInfo = getFormattedWheelDate('edit-day', 'edit-month', 'edit-year');
+            const val = parseFloat(document.getElementById('edit-reading-val').value);
+            const noteVal = (document.getElementById('edit-reading-note')?.value || '').trim();
+
+            if (isNaN(val) || val < 0) {
+                showToast('সঠিক রিডিং লিখুন!', 'error');
+                return;
+            }
+
+            const existing = readingsList.find(r => r.id === id);
+            if (!existing) return;
+
+            const updatedEntry = {
+                ...existing,
+                id,
+                day: dateInfo.d,
+                monthIdx: dateInfo.m,
+                year: dateInfo.y,
+                isoDate: dateInfo.iso,
+                dateLabel: dateInfo.label,
+                monthYear: dateInfo.monthYear,
+                reading: val,
+                note: noteVal,
+                locked: true
+            };
+
+            // Instant UI & state update
+            readingsList = sortRecords(readingsList.map(r => r.id === id ? updatedEntry : r));
+            saveAllToStorage();
+            renderSubmeterLogs();
+            closeModal('edit-reading-modal');
+            showToast('লকড সাব-মিটার রিডিং আপডেট করা হয়েছে!', 'success');
+
+            try {
+                await writeNode(`${DB_PATHS.READINGS}/${id}`, updatedEntry);
+            } catch (err) {
+                console.error('Edit reading Firebase error:', err);
+                showToast('ক্লাউডে রিডিং আপডেট করতে সমস্যা হয়েছে', 'error');
+            }
+        };
+
+        // ==================== NEW MONTHLY BILL MODAL (ADMIN) ====================
+        window.openBillModal = function() {
+            if (!isAdmin) return;
+            populateDateWheels('bill-day', 'bill-month', 'bill-year', new Date());
+
+            const prevSub = billsList.length > 0
+                ? billsList[0].currSub
+                : (readingsList.length > 1 ? readingsList[1].reading : 0);
+            const latestLockedSub = readingsList.length > 0 ? readingsList[0].reading : '';
+
+            const amountInput = document.getElementById('bill-main-amount');
+            amountInput.dataset.manualEdited = '';
+            amountInput.value = '';
+
+            document.getElementById('bill-prev-sub').value = prevSub;
+            document.getElementById('bill-curr-sub').value = latestLockedSub;
+            document.getElementById('bill-main-units').value = '';
+            document.getElementById('nesco-slab-breakdown-box').classList.add('hidden');
+
+            calculateLivePreview();
+            openModal('bill-modal');
+        };
+
+        document.getElementById('bill-main-amount')?.addEventListener('input', function() {
+            this.dataset.manualEdited = this.value.trim() !== '' ? 'true' : '';
+            calculateLivePreview();
+        });
+
+        window.onMainUnitsChange = function() {
+            const units = parseFloat(document.getElementById('bill-main-units').value) || 0;
+            const box = document.getElementById('nesco-slab-breakdown-box');
+            const amountInput = document.getElementById('bill-main-amount');
+
+            if (units > 0) {
+                const calc = calculateNescoBillFromUnits(units);
+                box.classList.remove('hidden');
+                box.innerHTML = `
+                    <div class="flex flex-wrap items-center justify-between gap-2">
+                        <span>NESCO স্ল্যাব হিসাব: এনার্জি <strong>৳${toBn(calc.energyCharge)}</strong> + ডিমান্ড <strong>৳${toBn(calc.demandCharge)}</strong> + ভ্যাট (${toBn(tariffConfig.vatPercent)}%) <strong>৳${toBn(calc.vat)}</strong></span>
+                        <span class="font-bold text-indigo-700">আনুমানিক মোট: ৳${toBn(calc.totalBill)}</span>
+                    </div>
+                `;
+                if (!amountInput.dataset.manualEdited) {
+                    amountInput.value = calc.totalBill;
+                }
+            } else {
+                box.classList.add('hidden');
+            }
+            calculateLivePreview();
+        };
+
+        window.applyNescoAutoBill = function() {
+            const units = parseFloat(document.getElementById('bill-main-units').value) || 0;
+            if (units <= 0) {
+                showToast('আগে মেইন মিটারের মোট ইউনিট লিখুন', 'error');
+                return;
+            }
+            const calc = calculateNescoBillFromUnits(units);
+            const amountInput = document.getElementById('bill-main-amount');
+            amountInput.value = calc.totalBill;
+            amountInput.dataset.manualEdited = '';
+            calculateLivePreview();
+            showToast('NESCO স্ল্যাব দর অনুযায়ী মোট বিল বসানো হয়েছে', 'info');
+        };
+
+        window.calculateLivePreview = function() {
+            const prevSub = parseFloat(document.getElementById('bill-prev-sub').value) || 0;
+            const currSub = parseFloat(document.getElementById('bill-curr-sub').value) || 0;
+            const mainUnits = parseFloat(document.getElementById('bill-main-units').value) || 0;
+            const mainAmount = parseFloat(document.getElementById('bill-main-amount').value) || 0;
+
+            const split = computeBillSplit(prevSub, currSub, mainUnits, mainAmount);
+
+            document.getElementById('preview-sub-units').textContent = `ব্যবহৃত: ${toBn(split.subUnits.toFixed(2))} ইউনিট`;
+            document.getElementById('preview-rate').textContent = `কার্যকর দর: ৳ ${toBn(split.unitRate.toFixed(2))}/ইউনিট`;
+
+            document.getElementById('prev-val-sub').textContent = formatTaka(split.subBill);
+            document.getElementById('prev-val-r1').textContent = formatTaka(split.r1Bill);
+            document.getElementById('prev-val-r2').textContent = formatTaka(split.r2Bill);
+        };
+
+        window.submitNewBill = async function(e) {
+            e.preventDefault();
+            if (!isAdmin) return;
+
+            const dateInfo = getFormattedWheelDate('bill-day', 'bill-month', 'bill-year');
+            const prevSub = parseFloat(document.getElementById('bill-prev-sub').value) || 0;
+            const currSub = parseFloat(document.getElementById('bill-curr-sub').value) || 0;
+            const mainUnits = parseFloat(document.getElementById('bill-main-units').value) || 0;
+            const amountInput = document.getElementById('bill-main-amount');
+            const mainBill = parseFloat(amountInput.value) || 0;
+
+            if (currSub < prevSub) {
+                showToast('বর্তমান রিডিং পূর্ববর্তী রিডিংয়ের চেয়ে কম হতে পারে না!', 'error');
+                return;
+            }
+            if (mainUnits <= 0 || mainBill <= 0) {
+                showToast('মেইন মিটারের ইউনিট ও বিল সঠিকভাবে লিখুন!', 'error');
+                return;
+            }
+
+            const split = computeBillSplit(prevSub, currSub, mainUnits, mainBill);
+            if (split.subUnits > mainUnits) {
+                showToast('সাব-মিটারের ইউনিট মেইন মিটারের মোট ইউনিটের চেয়ে বেশি হতে পারে না!', 'error');
+                return;
+            }
+
+            const autoCalc = calculateNescoBillFromUnits(mainUnits);
+            const isAutoSlab = !amountInput.dataset.manualEdited || Math.abs(mainBill - autoCalc.totalBill) < 0.01;
+
+            const newBill = {
+                isoDate: dateInfo.iso,
+                dateLabel: dateInfo.label,
+                monthYear: dateInfo.monthYear,
+                ...split,
+                autoSlabCalculated: isAutoSlab,
+                createdAt: Date.now()
+            };
+
+            try {
+                const key = await pushNode(DB_PATHS.BILLS, newBill);
+                const record = { id: key, ...newBill };
+                billsList = sortRecords([record, ...billsList.filter(b => b.id !== key)]);
+                saveAllToStorage();
+                renderDashboard();
+                closeModal('bill-modal');
+                showToast(`${dateInfo.monthYear} মাসের বিদ্যুৎ বিল সেভ হয়েছে!`, 'success');
+            } catch (err) {
+                console.error('Save bill error:', err);
+                showToast('বিল সেভ করতে সমস্যা হয়েছে!', 'error');
+            }
+        };
+
+        // ==================== DELETE & SETTINGS ====================
+        window.promptDelete = function(type, id) {
+            if (!isAdmin) return;
+            pendingDelete = { type, id };
+            openModal('delete-confirm-modal');
+        };
+
+        document.getElementById('confirm-delete-btn').addEventListener('click', async () => {
+            if (!isAdmin || !pendingDelete.id) return;
+            const { type, id } = pendingDelete;
+            pendingDelete = { type: null, id: null };
+            closeModal('delete-confirm-modal');
+
+            if (type === 'bill') {
+                deletedBillIds.add(id);
+                billsList = billsList.filter(b => b.id !== id);
+                saveAllToStorage();
+                renderDashboard();
+                try {
+                    await deleteNode(DB_PATHS.BILLS, id);
+                } catch (err) {
+                    console.error('Delete bill error:', err);
+                }
+            } else if (type === 'reading') {
+                deletedReadingIds.add(id);
+                readingsList = readingsList.filter(r => r.id !== id);
+                saveAllToStorage();
+                renderSubmeterLogs();
+                try {
+                    await deleteNode(DB_PATHS.READINGS, id);
+                } catch (err) {
+                    console.error('Delete reading error:', err);
+                }
+            }
+            showToast('রেকর্ড সফলভাবে মুছে ফেলা হয়েছে', 'info');
+        });
+
+        window.openSettingsModal = function() {
+            if (!isAdmin) return;
+            document.getElementById('set-name-sub').value = appSettings.nameSub;
+            document.getElementById('set-name-r1').value = appSettings.nameR1;
+            document.getElementById('set-name-r2').value = appSettings.nameR2;
+            document.getElementById('set-admin-pin').value = appSettings.adminPin;
+            openModal('settings-modal');
+        };
+
+        window.submitSettings = async function(e) {
+            e.preventDefault();
+            if (!isAdmin) return;
+            appSettings = {
+                nameSub: document.getElementById('set-name-sub').value.trim() || 'রুম ৩ (সাব-মিটার)',
+                nameR1: document.getElementById('set-name-r1').value.trim() || 'রুম ১',
+                nameR2: document.getElementById('set-name-r2').value.trim() || 'রুম ২',
+                adminPin: document.getElementById('set-admin-pin').value.trim() || '1234'
+            };
+            saveAllToStorage();
+            applySettingsToUI();
+            closeModal('settings-modal');
+            showToast('সেটিংস সঙ্গে সঙ্গে আপডেট হয়েছে!', 'success');
+
+            try {
+                await writeNode(DB_PATHS.SETTINGS, appSettings);
+            } catch (err) {
+                console.error('Settings sync error:', err);
+            }
+        };
+
+        window.copySummaryToClipboard = function() {
+            if (billsList.length === 0) {
+                showToast('কপি করার মতো কোনো বিলের হিসাব নেই!', 'error');
+                return;
+            }
+            const b = billsList[0];
+            const text = `⚡ *বিদ্যুৎ বিলের হিসাব (${b.monthYear})* ⚡
+📅 তারিখ: ${b.dateLabel}
+-----------------------
+🏢 মেইন মিটার বিল: ${formatTaka(b.mainBill)} (${toBn(b.mainUnits)} ইউনিট)
+📊 কার্যকর ইউনিট দর: ৳ ${toBn(Number(b.unitRate).toFixed(2))}
+🔌 সাব-মিটার রিডিং: ${toBn(b.prevSub)} → ${toBn(b.currSub)} (ব্যবহৃত: ${toBn(b.subUnits)} ইউনিট)
+-----------------------
+👤 *${appSettings.nameSub}:* ${formatTaka(b.subBill)}
+👤 *${appSettings.nameR1}:* ${formatTaka(b.r1Bill)}
+👤 *${appSettings.nameR2}:* ${formatTaka(b.r2Bill)}
+-----------------------`;
+
+            const ta = document.createElement('textarea');
+            ta.value = text;
+            ta.style.position = 'fixed';
+            ta.style.left = '-9999px';
+            document.body.appendChild(ta);
+            ta.select();
+            document.execCommand('copy');
+            document.body.removeChild(ta);
+            showToast('হিসাব কপি হয়েছে! এখন মেসেঞ্জার বা হোয়াটসঅ্যাপে পেস্ট করুন।', 'success');
+        };
+
+        // ==================== FIREBASE REALTIME SYNC ====================
+        function initFirebaseSync() {
+            try {
+                const app = initializeApp(firebaseConfig);
+                db = getDatabase(app);
+                setDbStatus('connecting', 'সংযোগ হচ্ছে...');
+
+                const connectedRef = ref(db, '.info/connected');
+                onValue(connectedRef, (snap) => {
+                    isFirebaseConnected = Boolean(snap.val());
+                    setDbStatus(isFirebaseConnected ? 'live' : 'offline', isFirebaseConnected ? 'লাইভ সিঙ্ক চালু' : 'অফলাইন ব্যাকআপ');
+                }, () => setDbStatus('offline', 'অফলাইন ব্যাকআপ'));
+
+                onValue(ref(db, DB_PATHS.SETTINGS), (snapshot) => {
+                    const data = snapshot.val();
+                    if (data) {
+                        appSettings = {
+                            nameSub: data.nameSub || 'রুম ৩ (সাব-মিটার)',
+                            nameR1: data.nameR1 || 'রুম ১',
+                            nameR2: data.nameR2 || 'রুম ২',
+                            adminPin: String(data.adminPin || '1234')
+                        };
+                        saveAllToStorage();
+                        applySettingsToUI();
+                    }
+                }, (err) => console.error('Settings listener error:', err));
+
+                onValue(ref(db, DB_PATHS.TARIFF), (snapshot) => {
+                    const data = snapshot.val();
+                    if (data && Array.isArray(data.slabs)) {
+                        tariffConfig = normalizeTariff(data);
+                        saveAllToStorage();
+                        refreshAllViews();
+                    }
+                }, (err) => console.error('Tariff listener error:', err));
+
+                onValue(ref(db, DB_PATHS.READINGS), (snapshot) => {
+                    const raw = snapshot.val();
+                    const remoteMap = new Map();
+                    if (raw && typeof raw === 'object') {
+                        Object.entries(raw).forEach(([key, val]) => {
+                            if (!val || deletedReadingIds.has(key)) return;
+                            const id = val.id || key;
+                            if (deletedReadingIds.has(id)) return;
+                            remoteMap.set(id, { id, ...val });
+                        });
+                    }
+                    readingsList = sortRecords(Array.from(remoteMap.values()));
+                    saveAllToStorage();
+                    renderSubmeterLogs();
+                }, (err) => console.error('Readings listener error:', err));
+
+                onValue(ref(db, DB_PATHS.BILLS), (snapshot) => {
+                    const raw = snapshot.val();
+                    const remoteMap = new Map();
+                    if (raw && typeof raw === 'object') {
+                        Object.entries(raw).forEach(([key, val]) => {
+                            if (!val || deletedBillIds.has(key)) return;
+                            const id = val.id || key;
+                            if (deletedBillIds.has(id)) return;
+                            remoteMap.set(id, { id, ...val });
+                        });
+                    }
+                    billsList = sortRecords(Array.from(remoteMap.values()));
+                    saveAllToStorage();
+                    renderDashboard();
+                }, (err) => console.error('Bills listener error:', err));
+            } catch (err) {
+                console.error('Firebase init failed:', err);
+                setDbStatus('offline', 'অফলাইন ব্যাকআপ');
+            }
+        }
+
+        // ==================== INITIALIZE ====================
+        populateDateWheels('pub-day', 'pub-month', 'pub-year', new Date());
+        refreshAllViews();
+        initFirebaseSync();
+    </script>
+</body>
+</html>
